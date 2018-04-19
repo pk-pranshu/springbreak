@@ -80,6 +80,7 @@ class Chart extends PureComponent {
                 right = 0,
             },
             plotLines,
+            panResponderReleased,
         } = newProps
 
         const { width, height } = this.state
@@ -128,8 +129,16 @@ class Chart extends PureComponent {
             }))
             this.setState({ plotLinesArray })
 
-            const nativeEventXY = plotLinesArray.map(items=>this.binaryInsert(plotLines.nativeEventX, items))
-            this.setState({ nativeEventXY })
+            const latestPlotLineX = plotLinesArray[0][plotLinesArray[0].length - 1].x
+            this.setState({ latestPlotLineX })
+
+            if (panResponderReleased) {
+                const nativeEventXY = plotLinesArray.map(items=>this.binaryInsert(latestPlotLineX, items))
+                this.setState({ nativeEventXY })
+            } else {
+                const nativeEventXY = plotLinesArray.map(items=>this.binaryInsert(plotLines.nativeEventX, items))
+                this.setState({ nativeEventXY })
+            }
 
             const extraProps = {
                 x,
@@ -145,13 +154,14 @@ class Chart extends PureComponent {
     }
 
     render() {
-        const { height, extraProps, pathsArr, nativeEventXY } = this.state
+        const { height, extraProps, pathsArr, nativeEventXY, latestPlotLineX } = this.state
         const {
             data,
             style,
             plotLines,
             showPlotLines,
             plotLinesProps,
+            panResponderReleased,
             svg,
             animate,
             animationDuration,
@@ -184,9 +194,9 @@ class Chart extends PureComponent {
                         }
                         {showPlotLines &&
                             <Line
-                                x1= { plotLines.nativeEventX }
+                                x1= { panResponderReleased ? latestPlotLineX : plotLines.nativeEventX }
                                 y1="0"
-                                x2= { plotLines.nativeEventX }
+                                x2= { panResponderReleased ? latestPlotLineX : plotLines.nativeEventX }
                                 y2= { height }
                                 stroke={ plotLinesProps.stroke }
                                 strokeWidth={ plotLinesProps.strokeWidth } />
@@ -247,6 +257,8 @@ Chart.propTypes = {
     showPlotLines: PropTypes.bool,
     plotLines: PropTypes.object,
     plotLinesProps: PropTypes.object,
+
+    panResponderReleased: PropTypes.bool,
 
     xScale: PropTypes.func,
     yScale: PropTypes.func,
