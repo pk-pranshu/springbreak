@@ -3,7 +3,7 @@ import * as scale from 'd3-scale'
 import * as shape from 'd3-shape'
 import PropTypes from 'prop-types'
 import React, { PureComponent } from 'react'
-import { View, Text } from 'react-native'
+import { View } from 'react-native'
 import Svg, { Line } from 'react-native-svg'
 import Path from './animated-path'
 
@@ -22,15 +22,21 @@ class Chart extends PureComponent {
     createPaths() {
         throw 'Extending "Chart" requires you to override "createPaths'
     }
-    buildPlotLinesArray = ({ x, index, value }) => (
-        { x: x(index), index, value }
+    buildPlotLinesArray = ({ x, index, value, itemsName }) => (
+        { x: x(index), index, value, name: itemsName }
     )
 
     binaryInsert(item,sortedList,low = 0,high = (sortedList.length - 1)) {
         if(sortedList && sortedList.length > 0){
             if (low == high) {
                 // hit end of sortedList - done
-                return low > 0 ? sortedList[low - 1].value : 0
+                if (low > 0) {
+                    return {
+                        name: sortedList[low - 1].name,
+                        value: sortedList[low - 1].value,
+                    }
+                }
+                return 0
             }
 
             // get midpoint of list and item value
@@ -48,7 +54,13 @@ class Chart extends PureComponent {
             }
 
             // found equal value - done
-            return mid > 0 ? sortedList[mid - 1].value : 0
+            if (mid > 0) {
+                return {
+                    name: sortedList[mid - 1].name,
+                    value: sortedList[mid - 1].value,
+                }
+            }
+            return 0
         }
         return 0
     }
@@ -67,6 +79,7 @@ class Chart extends PureComponent {
                 left = 0,
                 right = 0,
             },
+            plotLines,
         } = newProps
 
         const { width, height } = this.state
@@ -109,10 +122,15 @@ class Chart extends PureComponent {
 
             this.setState({ ticks })
 
-            const plotLinesArray = newProps.data.map(items => items.datapoints.map((value, index) => {
-                return this.buildPlotLinesArray({ x: x2, y, value, index })
+            const plotLinesArray = data.map(items => items.datapoints.map((value, index) => {
+                const itemsName = items.name
+                return this.buildPlotLinesArray({ x: x2, y, value, index, itemsName })
             }))
             this.setState({ plotLinesArray })
+
+            const nativeEventXY = plotLinesArray.map(items=>this.binaryInsert(plotLines.nativeEventX, items))
+            this.setState({ nativeEventXY })
+
             const extraProps = {
                 x,
                 y,
@@ -127,7 +145,7 @@ class Chart extends PureComponent {
     }
 
     render() {
-        const { height, extraProps } = this.state
+        const { height, extraProps, pathsArr, nativeEventXY } = this.state
         const {
             data,
             style,
@@ -138,6 +156,7 @@ class Chart extends PureComponent {
             animate,
             animationDuration,
             children,
+            legendComponent,
         } = this.props
 
         if (data.length === 0) {
@@ -146,9 +165,13 @@ class Chart extends PureComponent {
 
         return (
             <View style={ style }>
-                <Text>
-                    {this.state.plotLinesArray.map(items=>this.binaryInsert(plotLines.nativeEventX, items))}
-                </Text>
+                <View>
+                    {legendComponent && React.cloneElement(legendComponent,
+                        {
+                            nativeEventXY,
+                        }
+                    )}
+                </View>
                 <View style={{ flex: 1 }} onLayout={ event => this._onLayout(event) }>
                     <Svg style={{ flex: 1 }}>
                         {
@@ -168,8 +191,8 @@ class Chart extends PureComponent {
                                 stroke={ plotLinesProps.stroke }
                                 strokeWidth={ plotLinesProps.strokeWidth } />
                         }
-                        {this.state.pathsArr && this.state.pathsArr.length > 0 &&
-                            this.state.pathsArr.map((paths, index) =>
+                        {pathsArr && pathsArr.length > 0 &&
+                            pathsArr.map((paths, index) =>
                                 <Path
                                     key = { index }
                                     fill={ 'none' }
@@ -230,6 +253,8 @@ Chart.propTypes = {
 
     xAccessor: PropTypes.func,
     yAccessor: PropTypes.func,
+
+    legendComponent: PropTypes.object,
 }
 
 Chart.defaultProps = {
