@@ -12,6 +12,7 @@ class Chart extends PureComponent {
         width: 0,
         height: 0,
         plotLinesArray: [],
+        seriesDisplay: [],
     }
 
     _onLayout(event) {
@@ -36,7 +37,11 @@ class Chart extends PureComponent {
                         value: sortedList[low - 1].value,
                     }
                 }
-                return 0
+                // return 0
+                return {
+                    name: sortedList[low].name,
+                    value: sortedList[low].value,
+                }
             }
 
             // get midpoint of list and item value
@@ -60,9 +65,19 @@ class Chart extends PureComponent {
                     value: sortedList[mid - 1].value,
                 }
             }
-            return 0
+            // return 0
+            return {
+                name: sortedList[mid].name,
+                value: sortedList[mid].value,
+            }
         }
         return 0
+    }
+
+    updateSeriesDisplay (newState) {
+        this.setState({
+            seriesDisplay: newState,
+        })
     }
 
     componentWillReceiveProps (newProps) {
@@ -154,10 +169,11 @@ class Chart extends PureComponent {
     }
 
     render() {
-        const { height, extraProps, pathsArr, nativeEventXY, latestPlotLineX } = this.state
+        const { height, extraProps, pathsArr, nativeEventXY, latestPlotLineX, seriesDisplay } = this.state
         const {
             data,
             style,
+            panHandlers,
             plotLines,
             showPlotLines,
             plotLinesProps,
@@ -167,6 +183,7 @@ class Chart extends PureComponent {
             animationDuration,
             children,
             legendComponent,
+            seriesConfig,
         } = this.props
 
         if (data.length === 0) {
@@ -179,10 +196,11 @@ class Chart extends PureComponent {
                     {legendComponent && React.cloneElement(legendComponent,
                         {
                             nativeEventXY,
+                            seriesDisplayHandler: this.updateSeriesDisplay.bind(this),
                         }
                     )}
                 </View>
-                <View style={{ flex: 1 }} onLayout={ event => this._onLayout(event) }>
+                <View style={{ flex: 1 }} onLayout={ event => this._onLayout(event) } { ...panHandlers }>
                     <Svg style={{ flex: 1 }}>
                         {
                             React.Children.map(children, child => {
@@ -203,14 +221,24 @@ class Chart extends PureComponent {
                         }
                         {pathsArr && pathsArr.length > 0 &&
                             pathsArr.map((paths, index) =>
-                                <Path
-                                    key = { index }
-                                    fill={ 'none' }
-                                    { ...svg }
-                                    d={ paths.path }
-                                    animate={ animate }
-                                    animationDuration={ animationDuration }
-                                />
+                                seriesConfig.map(configItems => {
+                                    if (data[index].name === configItems.name) {
+                                        const itemVisible = seriesDisplay.find(item => item.name === data[index].name)
+                                        if (itemVisible && !itemVisible.display) {
+                                            return
+                                        }
+                                        return <Path
+                                            key = { index }
+                                            fill={ 'none' }
+                                            { ...svg }
+                                            stroke={ configItems.color }
+                                            d={ paths.path }
+                                            animate={ animate }
+                                            animationDuration={ animationDuration }
+                                        />
+                                    }
+                                }
+                                )
                             )
                         }
                         {
@@ -267,6 +295,7 @@ Chart.propTypes = {
     yAccessor: PropTypes.func,
 
     legendComponent: PropTypes.object,
+    seriesConfig: PropTypes.arrayOf(PropTypes.object),
 }
 
 Chart.defaultProps = {
