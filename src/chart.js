@@ -13,6 +13,7 @@ class Chart extends PureComponent {
         height: 0,
         plotLinesArray: [],
         seriesDisplay: [],
+        dateRangeSelected: 0,
     }
 
     _onLayout(event) {
@@ -74,15 +75,8 @@ class Chart extends PureComponent {
         return 0
     }
 
-    updateSeriesDisplay (newState) {
-        this.setState({
-            seriesDisplay: newState,
-        })
-    }
-
-    componentWillReceiveProps (newProps) {
+    generateRenderData (data, props, state) {
         const {
-            data,
             xAccessor,
             yAccessor,
             yScale,
@@ -96,9 +90,9 @@ class Chart extends PureComponent {
             },
             plotLines,
             panResponderReleased,
-        } = newProps
+        } = props
 
-        const { width, height } = this.state
+        const { width, height } = state
         if(data && data.length > 0) {
             const mappedData = data.map(items =>
                 items.datapoints.map((item, i) => ({
@@ -168,8 +162,59 @@ class Chart extends PureComponent {
         }
     }
 
+    updateSeriesDisplay (newState) {
+        this.setState({
+            seriesDisplay: newState,
+        })
+    }
+
+    updateDateRange (newState) {
+        const {
+            dateRangeEnabled,
+            dateRangeData,
+        } = this.props
+
+        const { dateRangeSelected } = this.state
+
+        if (dateRangeEnabled && newState !== dateRangeSelected) {
+            const selectedData = dateRangeData[newState]
+            this.generateRenderData(selectedData, this.props, this.state)
+        }
+
+        this.setState({
+            dateRangeSelected: newState,
+        })
+    }
+
+    componentWillReceiveProps (newProps) {
+        const {
+            data,
+            dateRangeEnabled,
+            dateRangeData,
+        } = newProps
+
+        const { dateRangeSelected } = this.state
+
+        let actualData = data
+
+        if (dateRangeEnabled) {
+            actualData = dateRangeData[dateRangeSelected]
+        }
+
+        this.generateRenderData(actualData, newProps, this.state)
+    }
+
     render() {
-        const { height, extraProps, pathsArr, nativeEventXY, latestPlotLineX, seriesDisplay } = this.state
+        const {
+            height,
+            extraProps,
+            pathsArr,
+            nativeEventXY,
+            latestPlotLineX,
+            seriesDisplay,
+            dateRangeSelected,
+        } = this.state
+
         const {
             data,
             style,
@@ -183,10 +228,16 @@ class Chart extends PureComponent {
             animationDuration,
             children,
             legendComponent,
+            dateRangeEnabled,
+            dateRangeData,
+            dateRangeComponent,
             seriesConfig,
+            svgContainerStyles,
         } = this.props
 
-        if (data.length === 0) {
+        const actualData = dateRangeEnabled ? dateRangeData[dateRangeSelected] : data
+
+        if (actualData.length === 0) {
             return <View style={ style }/>
         }
 
@@ -200,7 +251,8 @@ class Chart extends PureComponent {
                         }
                     )}
                 </View>
-                <View style={{ flex: 1 }} onLayout={ event => this._onLayout(event) } { ...panHandlers }>
+                <View style={ [{ flex: 1 }, svgContainerStyles ] }
+                    onLayout={ event => this._onLayout(event) } { ...panHandlers }>
                     <Svg style={{ flex: 1 }}>
                         {
                             React.Children.map(children, child => {
@@ -222,8 +274,9 @@ class Chart extends PureComponent {
                         {pathsArr && pathsArr.length > 0 &&
                             pathsArr.map((paths, index) =>
                                 seriesConfig.map(configItems => {
-                                    if (data[index].name === configItems.name) {
-                                        const itemVisible = seriesDisplay.find(item => item.name === data[index].name)
+                                    if (actualData[index].name === configItems.name) {
+                                        const itemVisible =
+                                        seriesDisplay.find(item => item.name === actualData[index].name)
                                         if (itemVisible && !itemVisible.display) {
                                             return
                                         }
@@ -252,6 +305,11 @@ class Chart extends PureComponent {
 
                     </Svg>
                 </View>
+                {dateRangeComponent && React.cloneElement(dateRangeComponent,
+                    {
+                        dateRangeHandler: this.updateDateRange.bind(this),
+                    }
+                )}
             </View>
         )
     }
@@ -295,7 +353,11 @@ Chart.propTypes = {
     yAccessor: PropTypes.func,
 
     legendComponent: PropTypes.object,
+    dateRangeEnabled: PropTypes.bool,
+    dateRangeData: PropTypes.arrayOf(PropTypes.arrayOf(PropTypes.object)),
+    dateRangeComponent: PropTypes.object,
     seriesConfig: PropTypes.arrayOf(PropTypes.object),
+    svgContainerStyles: PropTypes.object,
 }
 
 Chart.defaultProps = {
@@ -310,6 +372,7 @@ Chart.defaultProps = {
     xAccessor: ({ index }) => index,
     yAccessor: ({ item }) => item,
     plotLinesProps: { stroke: 'red', strokeWidth: '2' },
+    svgContainerStyles: { height: 300 },
 }
 
 export default Chart
